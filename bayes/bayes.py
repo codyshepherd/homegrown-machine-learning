@@ -2,12 +2,13 @@ import pandas as pd
 import itertools
 import sklearn.model_selection
 import sklearn.utils
+from sklearn.metrics import confusion_matrix
+from sklearn.linear_model import LogisticRegression
 import numpy as np
 import math
 import matplotlib.pyplot as plt
 from matplotlib.backends.backend_pdf import PdfPages
 import matplotlib.lines as mlines
-from sklearn.metrics import confusion_matrix
 
 logs = []
 def log(tup):
@@ -90,6 +91,30 @@ def plot_confusion_matrix(cm, classes, normalize=False, title='Confusion matrix'
     plt.tight_layout()
     plt.ylabel('True label')
     plt.xlabel('Predicted label')
+
+def getARP(preds, actuals):
+    num_actuals = len(actuals)
+    TP = 0.0
+    TN = 0.0
+    FP = 0.0
+    FN = 0.0
+    for i in xrange(num_actuals):
+        if preds[i] == actuals[i] and preds[i] == 1:
+            TP += 1.0
+        elif preds[i] == actuals[i] and preds[i] == 0:
+            TN += 1.0
+        elif preds[i] != actuals[i] and preds[i] == 1:
+            FP += 1.0
+        elif preds[i] != actuals[i] and preds[i] == 0:
+            FN += 1.0
+        else:
+            raise Exception("?????")
+
+    accuracy = (TP + TN)/float(num_actuals)
+    recall = TP/(TP + FN)
+    precision = TP/(TP + FP)
+
+    return accuracy, recall, precision
 
 # ===================================================================
 # Preparation
@@ -181,25 +206,7 @@ for i in xrange(num_test):
     guesses.append(guess)
 
 # compute accuracy, precision, and recall
-TP = 0.0
-TN = 0.0
-FP = 0.0
-FN = 0.0
-for i in xrange(num_test):
-    if guesses[i] == test_cls[i] and guesses[i] == 1:
-        TP += 1.0
-    elif guesses[i] == test_cls[i] and guesses[i] == 0:
-        TN += 1.0
-    elif guesses[i] != test_cls[i] and guesses[i] == 1:
-        FP += 1.0
-    elif guesses[i] != test_cls[i] and guesses[i] == 0:
-        FN += 1.0
-    else:
-        raise Exception("?????")
-
-accuracy = (TP + TN)/float(len(test_cls))
-recall = TP/(TP + FN)
-precision = TP/(TP + FP)
+accuracy, recall, precision = getARP(guesses, test_cls)
 
 print "accuracy: ", accuracy
 print "recall: ", recall
@@ -218,5 +225,23 @@ plot_confusion_matrix(cm, classes=class_names, title='Confusion matrix, without 
 
 pp.savefig()
 pp.close()
+
+#=====================================
+# Logistic Regression
+#====================================
+
+clf = LogisticRegression()
+clf.fit(train_set, train_cls)
+predictions = clf.predict(test_set)
+
+acc, rec, prec = getARP(predictions, test_cls)
+
+print "log reg"
+print "accuracy: ", acc
+print "recall: ", rec
+print "precision: ", prec
+log(('==== linear regression =====',))
+log(('accuracy', acc, 'recall', rec, 'precision', prec))
+
 
 save()
