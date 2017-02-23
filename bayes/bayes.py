@@ -29,6 +29,11 @@ def logme(tup):
     logs.append(tup)
 
 def save(filename='bayes.log'):
+    """
+    This function writes the global logs list to a file
+    :param filename: - the filename to which to dump logs
+    :return: None
+    """
     with open(filename, "w") as fh:
         fh.write("start of log\n")
         for tup in logs:
@@ -37,6 +42,16 @@ def save(filename='bayes.log'):
         fh.write("end of log\n")
 
 def validate(type, v0, v1, dataset, classes,):
+    """
+    This function is for verifying correct computation of means and stdevs.
+    :param type: - one of ['mean', 'stdev']
+    :param v0: - vector of feature means/stdevs given label == 0
+    :param v1: - vector of feature means/stdevs given label == 1
+    :param dataset: - set of original examples on which to compute mean/stdev
+    :param classes: -  class labels corresponding to dataset
+    :return: check_v0, check_v1 - two vectors which represent the correctly
+        calculated mean/stdev given each class label
+    """
     ones = []
     zeros = []
     for i in xrange(len(dataset)):
@@ -79,22 +94,18 @@ def validate(type, v0, v1, dataset, classes,):
         return chk_dev_0, chk_dev_1
 
 def post_v(x, m, s):
-
-    #ns = np.array([x if x != 0 else 0.000001 for x in s])
+    """
+    This Gaussian pdf function calculates the posterior probabilities of each feature
+    given a class, sums them, and then applies the log function. This is the version
+    that uses numpy's broadcasting functions.
+    :param x: the feature vector
+    :param m: vector of means given a class for each feature
+    :param s: vector of stdevs given a class for each feature
+    :return: a real value representing the sum of logs of pdfs.
+    """
     ns = np.array(s)
     nm = np.array(m)
-    #ret = ((1.0/(np.sqrt(2.0*math.pi)*s)) * np.exp( (-1.0) * ( (np.power((x-m), 2.0))/( 2.0*(np.power(s, 2.0)) ) ) ) )
-    """
-    dividend = 1.0
-    divisor = np.sqrt(2 * np.pi) * s
 
-    first_term = dividend/divisor
-
-    dividend2 = -np.power((x-m), 2)
-    divisor2 = 2 * np.power(s, 2)
-
-    second_term = dividend2/divisor2
-    """
     first_term = np.true_divide(1.0, np.multiply(np.sqrt(2 * math.pi), ns))
 
     second_term = np.exp(-np.true_divide(np.power((np.subtract(x, nm)), 2), (np.multiply(2.0, np.power(ns, 2)))))
@@ -106,6 +117,14 @@ def post_v(x, m, s):
     return ret
 
 def post(x, m, s):
+    """
+    This is the same as post_v(), except it uses homebrewed math on single values, rather than
+    numpy broadcast math over vectors.
+    :param x: the x value in Gauss
+    :param m: the mu value in Gauss
+    :param s: the sigma value in Gauss
+    :return: a scalar representing the log of the pdf
+    """
     #if s == 0.0:
     if s == 0.0 or x == 0.0:
         return 0.0
@@ -151,6 +170,13 @@ def plot_confusion_matrix(cm, classes, normalize=False, title='Confusion matrix'
     plt.xlabel('Predicted label')
 
 def getARP(preds, actuals):
+    """
+    This function computes accuracy, recall, and precision given a vector of predictions
+    and a vector of actual values.
+    :param preds: the vector of guessed classes on {0,1}
+    :param actuals: the vector of actual labels
+    :return: accuracy, recall, precision
+    """
     num_actuals = len(actuals)
     num_preds = len(preds)
     if num_actuals != num_preds:
@@ -190,11 +216,19 @@ X_train, X_test, train_cls, test_cls = sklearn.model_selection.train_test_split(
 train_set = X_train.as_matrix()
 test_set = X_test.as_matrix()
 
+# get commonly-used figures
 num_train = len(train_set)
 num_test = len(test_set)
 example_len = len(train_set[0])
 num_tn_0 = sum([x==0 for x in train_cls])
 num_tn_1 = sum([x==1 for x in train_cls])
+
+
+# ===================================================================
+# Look for all-null features
+# ===================================================================
+# This section is used for identifying all-null features across examples
+# It just prints results to stdout
 
 null_features_0 = []
 null_features_1 = []
@@ -235,7 +269,10 @@ print null_features_0
 print "test 1"
 print null_features_1
 
-# compute priors
+# ===================================================================
+# Build Model
+# ===================================================================
+######################## compute priors
 tng_pct_spm = num_tn_1/float(num_train)
 tst_pct_spm = sum([x==1 for x in test_cls])/float(num_test)
 prior_p1 = tng_pct_spm
@@ -248,7 +285,7 @@ mean_vector_1 = []
 stdev_0_vector = []
 stdev_1_vector = []
 
-# compute mean vectors given each class
+######################## compute mean vectors given each class
 for i in xrange(example_len):
     j = 0
     mean_0 = 0.0
@@ -264,12 +301,9 @@ for i in xrange(example_len):
     mean_vector_0.append(mean_0)
     mean_vector_1.append(mean_1)
 
-#mean_vector_0 = np.array(mean_vector_0)
-#mean_vector_1 = np.array(mean_vector_1)
-
 #mean_vector_0, mean_vector_1 = validate('mean', mean_vector_0, mean_vector_1, train_set, train_cls)
 
-# compute stdev vectors given each class
+####################### compute stdev vectors given each class
 for i in xrange(example_len):
     j = 0
     stddev_0 = 0.0
@@ -289,12 +323,9 @@ for i in xrange(example_len):
     stdev_0_vector.append(stddev_0)
     stdev_1_vector.append(stddev_1)
 
-#stdev_0_vector = np.array(stdev_0_vector)
-#stdev_1_vector = np.array(stdev_1_vector)
-
 #stdev_0_vector, stdev_1_vector = validate('stdev', stdev_0_vector, stdev_1_vector, train_set, train_cls)
 
-# get guess for each example
+##################### get guess for each example
 guesses = []
 for example in test_set:
 
@@ -309,25 +340,22 @@ for example in test_set:
 
     guesses.append(0 if guess_0 > guess_1 else 1)
 
-print stdev_0_vector
-print stdev_1_vector
-
-print zip(guesses, test_cls)
-# compute accuracy, precision, and recall
+#################### compute accuracy, precision, and recall
 accuracy, recall, precision = getARP(guesses, test_cls)
 
+print "Naive Bayes"
 print "accuracy: ", accuracy
 print "recall: ", recall
 print "precision: ", precision
 logme(('accuracy', accuracy, 'recall', recall, 'precision', precision))
 
+#################### generate Confusion Matrix
 pp = PdfPages('cm.pdf')
 
 cm = confusion_matrix(test_cls, guesses, [i for i in xrange(2)])
 class_names = [x for x in xrange(2)]
 np.set_printoptions(precision=2)
 
-# Plot non-normalized confusion matrix
 plt.figure()
 plot_confusion_matrix(cm, classes=class_names, title='Confusion matrix, without normalization')
 
