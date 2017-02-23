@@ -264,10 +264,10 @@ for i in xrange(example_len):
     if null_feature_1 == True:
         null_features_1.append(i)
 
-print "test 0"
-print null_features_0
-print "test 1"
-print null_features_1
+#print "test 0"
+#print null_features_0
+#print "test 1"
+#print null_features_1
 
 # ===================================================================
 # Build Model
@@ -378,6 +378,19 @@ print "recall: ", rec
 print "precision: ", prec
 logme(('==== linear regression =====',))
 logme(('accuracy', acc, 'recall', rec, 'precision', prec))
+
+#################### generate Confusion Matrix
+pp = PdfPages('lr_cm.pdf')
+
+cm = confusion_matrix(test_cls, predictions, [i for i in xrange(2)])
+class_names = [x for x in xrange(2)]
+np.set_printoptions(precision=2)
+
+plt.figure()
+plot_confusion_matrix(cm, classes=class_names, title='Confusion Matrix for Logistic Regression')
+
+pp.savefig()
+pp.close()
 
 print "errors: ", errors
 save()
