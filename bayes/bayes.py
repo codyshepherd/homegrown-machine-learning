@@ -15,7 +15,9 @@ import math
 import matplotlib.pyplot as plt
 from matplotlib.backends.backend_pdf import PdfPages
 import matplotlib.lines as mlines
+import random
 
+errors = 0
 logs = []
 def logme(tup):
     """
@@ -43,42 +45,44 @@ def validate(type, v0, v1, dataset, classes,):
         else:
             ones.append(dataset[i])
     if type=='mean':
-        train_0_col_means = X_train.loc[0].describe().loc['mean']
-        train_1_col_means = X_train.loc[1].describe().loc['mean']
-        #chk_mean_0 = np.mean(zeros, axis=0, dtype=np.float64)
-        #chk_mean_1 = np.mean(ones, axis=0, dtype=np.float64)
+        #train_0_col_means = X_train.loc[0].describe().loc['mean']
+        #train_1_col_means = X_train.loc[1].describe().loc['mean']
+        chk_mean_0 = np.mean(zeros, axis=0, dtype=np.float64)
+        chk_mean_1 = np.mean(ones, axis=0, dtype=np.float64)
 
         print "Mean =========="
         print "Homegrown"
         print v0[:10]
         print v1[:10]
         print "Numpy"
-        print train_0_col_means
-        print train_1_col_means
-        #print chk_mean_0[:10]
-        #print chk_mean_1[:10]
+        #print train_0_col_means
+        #print train_1_col_means
+        print chk_mean_0[:10]
+        print chk_mean_1[:10]
+        return chk_mean_0, chk_mean_1
 
     if type=='stdev':
-        train_0_col_std = X_train.loc[0].describe().loc['std']
-        train_1_col_std = X_train.loc[1].describe().loc['std']
-        #chk_dev_0 = np.std(zeros, axis=0, dtype=np.float64)
-        #chk_dev_1 = np.std(ones, axis=0, dtype=np.float64)
+        #train_0_col_std = X_train.loc[0].describe().loc['std']
+        #train_1_col_std = X_train.loc[1].describe().loc['std']
+        chk_dev_0 = np.std(zeros, axis=0, dtype=np.float64)
+        chk_dev_1 = np.std(ones, axis=0, dtype=np.float64)
 
         print "Std Dev =========="
         print "Homegrown"
         print v0[:10]
         print v1[:10]
         print "Numpy"
-        print train_0_col_std
-        print train_1_col_std
-        #print chk_dev_0[:10]
-        #print chk_dev_1[:10]
+        #print train_0_col_std
+        #print train_1_col_std
+        print chk_dev_0[:10]
+        print chk_dev_1[:10]
+        return chk_dev_0, chk_dev_1
 
 def post_v(x, m, s):
 
     #ns = np.array([x if x != 0 else 0.000001 for x in s])
-    #ns = np.array(s)
-    #nm = np.array(m)
+    ns = np.array(s)
+    nm = np.array(m)
     #ret = ((1.0/(np.sqrt(2.0*math.pi)*s)) * np.exp( (-1.0) * ( (np.power((x-m), 2.0))/( 2.0*(np.power(s, 2.0)) ) ) ) )
     """
     dividend = 1.0
@@ -91,9 +95,9 @@ def post_v(x, m, s):
 
     second_term = dividend2/divisor2
     """
-    first_term = np.true_divide(1.0, np.multiply(np.sqrt(2 * math.pi), s))
+    first_term = np.true_divide(1.0, np.multiply(np.sqrt(2 * math.pi), ns))
 
-    second_term = np.exp(-np.true_divide(np.power((np.subtract(x, m)), 2), (np.multiply(2.0, np.power(s, 2)))))
+    second_term = np.exp(-np.true_divide(np.power((np.subtract(x, nm)), 2), (np.multiply(2.0, np.power(ns, 2)))))
 
     ret = np.multiply(first_term, second_term)
 
@@ -192,6 +196,45 @@ example_len = len(train_set[0])
 num_tn_0 = sum([x==0 for x in train_cls])
 num_tn_1 = sum([x==1 for x in train_cls])
 
+null_features_0 = []
+null_features_1 = []
+for i in xrange(example_len):
+    null_feature_0 = True
+    null_feature_1 = True
+    for j in xrange(len(train_set)):
+        if train_set[j][i] != 0 and train_cls[j] == 0:
+            null_feature_0 = False
+        if train_set[j][i] != 0 and train_cls[j] == 1:
+            null_feature_1 = False
+    if null_feature_0 == True:
+        null_features_0.append(i)
+    if null_feature_1 == True:
+        null_features_1.append(i)
+
+print "train 0"
+print null_features_0
+print "train 1"
+print null_features_1
+null_features_0 = []
+null_features_1 = []
+for i in xrange(example_len):
+    null_feature_0 = True
+    null_feature_1 = True
+    for j in xrange(len(test_set)):
+        if test_set[j][i] != 0 and test_cls[j] == 0:
+            null_feature_0 = False
+        if test_set[j][i] != 0 and test_cls[j] == 1:
+            null_feature_1 = False
+    if null_feature_0 == True:
+        null_features_0.append(i)
+    if null_feature_1 == True:
+        null_features_1.append(i)
+
+print "test 0"
+print null_features_0
+print "test 1"
+print null_features_1
+
 # compute priors
 tng_pct_spm = num_tn_1/float(num_train)
 tst_pct_spm = sum([x==1 for x in test_cls])/float(num_test)
@@ -221,10 +264,10 @@ for i in xrange(example_len):
     mean_vector_0.append(mean_0)
     mean_vector_1.append(mean_1)
 
-mean_vector_0 = np.array(mean_vector_0)
-mean_vector_1 = np.array(mean_vector_1)
+#mean_vector_0 = np.array(mean_vector_0)
+#mean_vector_1 = np.array(mean_vector_1)
 
-#validate('mean', mean_vector_0, mean_vector_1, train_set, train_cls)
+#mean_vector_0, mean_vector_1 = validate('mean', mean_vector_0, mean_vector_1, train_set, train_cls)
 
 # compute stdev vectors given each class
 for i in xrange(example_len):
@@ -246,10 +289,10 @@ for i in xrange(example_len):
     stdev_0_vector.append(stddev_0)
     stdev_1_vector.append(stddev_1)
 
-stdev_0_vector = np.array(stdev_0_vector)
-stdev_1_vector = np.array(stdev_1_vector)
+#stdev_0_vector = np.array(stdev_0_vector)
+#stdev_1_vector = np.array(stdev_1_vector)
 
-#validate('stdev', stdev_0_vector, stdev_1_vector, train_set, train_cls)
+#stdev_0_vector, stdev_1_vector = validate('stdev', stdev_0_vector, stdev_1_vector, train_set, train_cls)
 
 # get guess for each example
 guesses = []
@@ -266,6 +309,10 @@ for example in test_set:
 
     guesses.append(0 if guess_0 > guess_1 else 1)
 
+print stdev_0_vector
+print stdev_1_vector
+
+print zip(guesses, test_cls)
 # compute accuracy, precision, and recall
 accuracy, recall, precision = getARP(guesses, test_cls)
 
@@ -304,5 +351,5 @@ print "precision: ", prec
 logme(('==== linear regression =====',))
 logme(('accuracy', acc, 'recall', rec, 'precision', prec))
 
-
+print "errors: ", errors
 save()
