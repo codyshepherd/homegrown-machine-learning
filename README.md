@@ -7,9 +7,9 @@ gets them into the format needed by the perceptron, and dumps them to .json obje
 amortize preprocessing time over several tests.
 
 ## MLP
-### A Two-Layered Neural Network Using Feed-Forward & Backpropagation Written for the MNIST Dataset
+### A Two-Layered Neural Network Using Feed-Forward and Backpropagation Written for the MNIST Dataset.
 The mlp expects the .json objects produced by perceptron/preprocessing in its local directory.
----
+
 Currently backpropagation is hard-coded to expect only two layers (one hidden layer + output layer). 
 All the other components are configured for arbitrary layers, however. Eventually backprop will be
 updated to manage an arbitrary number of hidden layers.
@@ -19,3 +19,11 @@ updated to manage an arbitrary number of hidden layers.
 `processing.py` scales the spambase data to standard mean, unit variance, shuffles it, and generates a ROC curve.
 It then measures accuracy as a function of number of features; first, on the most heavily weighted features, then
 on randomly-selected features.
+
+## Naive Bayes
+### A probablistic classifier for the Spambase Dataset
+Naive Bayes makes the assumption that the probabilities of all features occuring given a class are independent.
+This implementation will intermittently fail to provide good classifications. This happens when the exmaples
+are shuffled such that one or more features in every example are zero for a given class in the training set, but
+not the test set. This could be obviated by making the shuffle more deterministic, or by implementing Lapalace
+Smoothing.
