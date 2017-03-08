@@ -318,9 +318,9 @@ clf.plots()
 clf.vis()
 
 with open('K10_best_results.txt', 'w+') as fh:
-    fh.write('TRAINING')
+    fh.write('TRAINING\n')
     fh.write('amse: ' + str(amse) + '\n' + 'mss: ' + str(mss) + '\n' + 'acc: ' + str(acc) + '\n')
-    fh.write('TESTING')
+    fh.write('TESTING\n')
     fh.write('amse: ' + str(tamse) + '\n' + 'mss: ' + str(tmss) + '\n' + 'acc: ' + str(tacc) + '\n')
 
 #####################################################
@@ -344,7 +344,7 @@ clf.plots()
 clf.vis()
 
 with open('K30_best_results.txt', 'w+') as fh:
-    fh.write('TRAINING')
+    fh.write('TRAINING\n')
     fh.write('amse: ' + str(amse) + '\n' + 'mss: ' + str(mss) + '\n' + 'acc: ' + str(acc) + '\n')
-    fh.write('TESTING')
+    fh.write('TESTING\n')
     fh.write('amse: ' + str(tamse) + '\n' + 'mss: ' + str(tmss) + '\n' + 'acc: ' + str(tacc) + '\n')
