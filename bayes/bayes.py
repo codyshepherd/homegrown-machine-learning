@@ -8,10 +8,10 @@ import pandas as pd
 import itertools
 import sklearn.model_selection
 import sklearn.utils
-from sklearn.metrics import confusion_matrix
 from sklearn.linear_model import LogisticRegression
 import numpy as np
 import math
+from sklearn.metrics import confusion_matrix
 import matplotlib.pyplot as plt
 from matplotlib.backends.backend_pdf import PdfPages
 import matplotlib.lines as mlines
