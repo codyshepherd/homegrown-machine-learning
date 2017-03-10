@@ -27,3 +27,10 @@ This implementation will intermittently fail to provide good classifications. Th
 are shuffled such that one or more features in every example are zero for a given class in the training set, but
 not the test set. This could be obviated by making the shuffle more deterministic, or by implementing Lapalace
 Smoothing.
+
+## K-Means Clustering
+### An unsupervised clustering algorithm for classifying handwritten digits
+This K-means clusterer will take the best out of five tries given randomly-initialized cluster centers. It
+works by computing the distances between all possible example-centroid pairs given the training set, and then
+resetting the cluster centroid to the mean of its cluster. It does this in a loop until accuracy stops 
+changing. Higher accuracies (in the 90% range) are seen for the second iteration where K=30.
