@@ -1,23 +1,31 @@
 import System.Random
 import Data.List
 import Data.List.Utils
+import Data.List.Extras.Argmax
+import Data.Ord
 import Data.Map (Map)
 import qualified Data.Map as Map
+import Control.Exception
+import Debug.Trace
 
 n = 5000
-m = 200
-eta = 0.2
-gamma = 0.9
+m = 20
+eta = 0.2 :: Float
+gamma = 0.9 :: Float
+
+data KeyNotFoundException = KeyNotFoundException deriving (Show)
+
+instance Exception KeyNotFoundException
 
 data Cell = Empty | Wall | Can | ERob | CRob deriving (Show, Eq)
 
 data Grid = Grid{   cells   :: [[Cell]]
                 ,   loc     :: (Int, Int)
-                ,   reward  :: Int
+                ,   reward  :: Float
                 ,   episode :: Int
                 ,   step    :: Int
                 ,   epsilon :: Float
-                ,   qtable  :: Map String [Int]} deriving (Show, Eq)
+                ,   qtable  :: Map String [Float]} deriving (Show, Eq)
 
 data Act = U | D | L | R | P deriving (Show, Eq)
 
@@ -27,6 +35,14 @@ data State = State{ north :: Cell
                   , west  :: Cell
                   , here  :: Cell
                   , key   :: String} deriving (Show, Eq)
+
+actToInt :: Act -> Int
+actToInt a = case a of
+                    U -> 0
+                    D -> 1
+                    L -> 2
+                    R -> 3
+                    P -> 4
 
 getCell :: Int -> Cell
 getCell n = case n `mod` 2 of
@@ -160,32 +176,32 @@ move dir grd =   let    rw = checkMove dir grd
                                                                  , epsilon = eps
                                                                  , qtable=qt }
 
-checkMove :: Act -> Grid -> Int
+checkMove :: Act -> Grid -> Float
 checkMove dir grd
     | fst (loc grd) <= 1 && snd (loc grd) <= 1 =    case dir of
-                                                U -> -5
-                                                L -> -5
-                                                _ -> 0
+                                                U -> -5.0
+                                                L -> -5.0
+                                                _ -> 0.0
     | fst (loc grd) <= 1 =                    case dir of
-                                                L -> -5
-                                                _ -> 0
+                                                L -> -5.0
+                                                _ -> 0.0
     | snd (loc grd) <= 1 =                    case dir of
-                                                U -> -5
-                                                _ -> 0
+                                                U -> -5.0
+                                                _ -> 0.0
     | fst (loc grd) >= 9 && snd (loc grd) >= 9 =    case dir of
-                                                D -> -5
-                                                R -> -5
-                                                _ -> 0
+                                                D -> -5.0
+                                                R -> -5.0
+                                                _ -> 0.0
     | fst (loc grd) >= 9 =                    case dir of
-                                                R -> -5
-                                                _ -> 0
+                                                R -> -5.0
+                                                _ -> 0.0
     | snd (loc grd) >= 9 =                    case dir of
-                                                D -> -5
-                                                _ -> 0
+                                                D -> -5.0
+                                                _ -> 0.0
     | otherwise =                                   case cells grd !! snd (loc grd) !! fst (loc grd) of
-                                                CRob -> if dir == P then 10 else 0
-                                                ERob -> if dir == P then -1 else 0
-                                                _ -> 0
+                                                CRob -> if dir == P then 10.0 else 0.0
+                                                ERob -> if dir == P then -1.0 else 0.0
+                                                _ -> 0.0
 
 getState :: Grid -> State
 getState grd = let  i = fst (loc grd)
@@ -203,28 +219,72 @@ getState grd = let  i = fst (loc grd)
                                     , here = h
                                     , key = k}
 
-newQTable :: Map String [Int]
+newQTable :: Map String [Float]
 newQTable = let strings = [ [n] ++ [s] ++ [e] ++ [w] ++ [h] | n <- ['0'..'2'], s <- ['0'..'2']
                                                   , e <- ['0'..'2'], w <- ['0'..'2'], h <- ['0'..'4']]
                 in Map.fromList (map makePair strings)
-                    where makePair x = (x, [0,0,0,0,0])
+                    where makePair x = (x, [0.0,0.0,0.0,0.0,0.0])
 
-getNewAction :: Grid -> Act
-getNewAction grd = U
+getNewAction :: [Act] -> [Bool] -> Grid -> Act
+getNewAction randActs isRandom grd = let st = step grd
+                                        in if isRandom !! st == True
+                                           then randActs !! st
+                                           else getBestAction grd
+
+maxI :: [Float] -> Int
+maxI xs = let (f, i) = maximumBy (comparing fst) (zip xs [0..]) in i
+
+getBestAction :: Grid -> Act
+getBestAction grd = let k = key (getState grd)
+                        l = Map.lookup k (qtable grd)
+                        in case l of
+                            Just n -> getAction (maxI n)
+                            Nothing -> throw KeyNotFoundException
+
+repl :: Int -> Float -> [Float] -> [Float]
+repl i new lst = [if j == i then new else x | x<-lst, j<-[1..length lst]]
+
+computeQ :: String -> String -> Int -> Float -> Map String [Float] -> Float
+computeQ s s' i r qt = let  q = (Map.lookup s qt)
+                            --q' = Map.lookup s'
+                            in case q of
+                                Just a -> let y = a !! i
+                                              q' = Map.lookup s' qt
+                                              in case q' of
+                                                Just z -> y + (eta * (r + gamma*(argmax (\x -> x-0.0) z) - y))
+                                                Nothing -> throw KeyNotFoundException
+                                Nothing -> throw KeyNotFoundException
 
 
---learn :: State -> State -> Act -> Grid -> Grid
---learn s sprime a grd = []
+learn :: State -> State -> Act -> Grid -> Grid
+learn s sprime a grd = let qt = qtable grd
+                           rw = reward grd
+                           sk = key s
+                           sk' = key sprime
+                           ind = actToInt a
+                           lst = Map.lookup sk qt
+                           in case lst of
+                                Just y -> let newlist = repl ind (computeQ sk sk' ind rw qt) y
+                                            in Grid{ cells   = cells grd
+                                                   , loc     = loc grd
+                                                   , reward  = reward grd
+                                                   , episode = episode grd
+                                                   , step    = step grd
+                                                   , epsilon = epsilon grd
+                                                   , qtable  = Map.insert sk newlist (Map.delete sk qt)}
+                                Nothing -> throw KeyNotFoundException
 
-{-
-execEpisode :: Int -> Grid -> Grid
-execEpisode n grd = do s <- getState grd
-                       act <- getNewAction grd
-                       grdprime <- move act grd
-                       sprime <- getState grdprime
-                       grdprime
-                       --learn s sprime act grdprime
--}
+execEpisode :: [Act] -> [Bool] -> Int -> Grid -> Grid
+execEpisode rands isRands i grd = let s = getState grd
+                                      act = getNewAction rands isRands grd
+                                      grdprime = move act grd
+                                      sprime = getState grdprime
+                                      in if i == m
+                                         then let a = trace (join "" (join ["\n"] (listValues (cells grd)))) (learn s sprime act grdprime)
+                                                 in learn s sprime act grdprime
+                                         else let a = trace (join "" (join ["\n"] (listValues (cells grd)))) (execEpisode rands isRands (i+1) (learn s sprime act grdprime))
+                                                 in execEpisode rands isRands (i+1) (learn s sprime act grdprime)
+
 
 
 main = do
@@ -246,8 +306,8 @@ main = do
                    ,qtable = table}
         st = getState grid
         numEpisodes = 10
-    print (take 10 randoms)
-    print (take 10 isRandoms)
+        final = execEpisode randoms isRandoms 0 grid
+    printField (cells final)
     --printField (removeRob (addRob (4,6) (cells grid)))
     {-
     printField (cells grid)
