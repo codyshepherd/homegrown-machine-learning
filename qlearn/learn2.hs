@@ -22,9 +22,7 @@ data Cell = Empty | Wall | Can | ERob | CRob deriving (Show, Eq)
 data Grid = Grid{   cells   :: [[Cell]]
                 ,   loc     :: (Int, Int)
                 ,   reward  :: Float
-                ,   episode :: Int
                 ,   step    :: Int
-                ,   epsilon :: Float
                 ,   qtable  :: Map String [Float]} deriving (Show, Eq)
 
 data Act = U | D | L | R | P deriving (Show, Eq)
@@ -153,27 +151,23 @@ move dir grd =   let    rw = checkMove dir grd
                         qt = qtable grd
                         i = fst (loc grd)
                         j = snd (loc grd)
-                        epi = episode grd
                         st = step grd
-                        eps = epsilon grd
                         in case dir of
                             U -> let lc = (i, j-1) in Grid{ cells = addRob lc (removeRob (cells grd))
-                                                          , loc=lc, reward=rw, episode=epi, step=st+1,epsilon=eps, qtable=qt}
+                                                          , loc=lc, reward=rw, step=st+1, qtable=qt}
                             D -> let lc = (i, j+1) in Grid{ cells = addRob lc (removeRob (cells grd))
-                                                          , loc=lc, reward=rw, episode=epi, step=st+1,epsilon=eps, qtable=qt}
+                                                          , loc=lc, reward=rw, step=st+1, qtable=qt}
                             L -> let lc = (i-1, j) in Grid{ cells = addRob lc (removeRob (cells grd))
-                                                          , loc=lc, reward=rw, episode=epi, step=st+1,epsilon=eps, qtable=qt}
+                                                          , loc=lc, reward=rw, step=st+1, qtable=qt}
                             R -> let lc = (i+1, j) in Grid{ cells = addRob lc (removeRob (cells grd))
-                                                          , loc=lc, reward=rw, episode=epi, step=st+1,epsilon=eps, qtable=qt}
+                                                          , loc=lc, reward=rw, step=st+1, qtable=qt}
                             P -> let lc = loc grd in if isCan lc (cells grd)
                                                         then Grid{ cells = removeCan lc (cells grd)
-                                                                 , loc=lc, reward=rw, episode=epi, step=st+1,epsilon=eps, qtable=qt}
+                                                                 , loc=lc, reward=rw, step=st+1, qtable=qt}
                                                         else Grid{ cells = cells grd
                                                                  , loc = lc
                                                                  , reward = rw
-                                                                 , episode = epi
                                                                  , step = st+1
-                                                                 , epsilon = eps
                                                                  , qtable=qt }
 
 checkMove :: Act -> Grid -> Float
@@ -268,9 +262,7 @@ learn s sprime a grd = let qt = qtable grd
                                             in Grid{ cells   = cells grd
                                                    , loc     = loc grd
                                                    , reward  = reward grd
-                                                   , episode = episode grd
                                                    , step    = step grd
-                                                   , epsilon = epsilon grd
                                                    , qtable  = Map.insert sk newlist (Map.delete sk qt)}
                                 Nothing -> throw KeyNotFoundException
 
@@ -284,6 +276,27 @@ execEpisode rands isRands i grd = let s = getState grd
                                                  in learn s sprime act grdprime
                                          else let a = trace (join "" (join ["\n"] (listValues (cells grd)))) (execEpisode rands isRands (i+1) (learn s sprime act grdprime))
                                                  in execEpisode rands isRands (i+1) (learn s sprime act grdprime)
+
+slice :: Int -> Int -> [a] -> [a]
+slice from to xs = take (to - from + 1) (drop from xs)
+
+execProg :: [Act] -> [Bool] -> Int -> Int -> Grid -> IO ()
+execProg rands isRands episodes steps initgrid =
+    if episodes == n
+    then return ()
+    else do
+        final <- return (execEpisode rands isRands steps initgrid)
+        print ("End of episode" ++ show episodes)
+        printField (cells final)
+        f <- randomField 8
+        l <- randomLoc 8
+        let randoms = slice steps (length rands) rands
+            isRandoms = slice steps (length isRands) isRands
+        execProg randoms isRandoms (episodes+1) steps Grid{ cells = addRob l (addWalls 10 f)
+                                                          , loc = l
+                                                          , reward = 0
+                                                          , step = 0
+                                                          , qtable = qtable final}
 
 
 
@@ -300,14 +313,9 @@ main = do
         grid = Grid{cells = addRob l ff
                    ,loc = l
                    ,reward = 0
-                   ,episode = 0
                    ,step = 0
-                   ,epsilon = 1
                    ,qtable = table}
-        st = getState grid
-        numEpisodes = 10
-        final = execEpisode randoms isRandoms 0 grid
-    printField (cells final)
+    execProg randoms isRandoms 0 0 grid
     --printField (removeRob (addRob (4,6) (cells grid)))
     {-
     printField (cells grid)
