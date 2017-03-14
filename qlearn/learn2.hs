@@ -104,7 +104,7 @@ isActionRandom eps n m step = mapM randomBool [floor (eps-(0.01* fromIntegral y)
                                 , y <- [x `div` (m*step)]]
 
 addRob :: (Int, Int) -> [[Cell]] -> [[Cell]]
-addRob loc cs = let r = if cs !! (fst loc) !! (snd loc) == Empty then ERob else CRob
+addRob loc cs = let r = if cs !! (snd loc) !! (fst loc) == Empty then ERob else CRob
                     i = fst loc
                     j = snd loc
                     in take j cs ++ [take i (cs !! j) ++ [r] ++ lastN' (9-i) (cs !! j)] ++ lastN' (9-j) cs
@@ -113,7 +113,7 @@ removeRob :: [[Cell]] -> [[Cell]]
 removeRob cs = let gs = [replace [ERob] [Empty] c | c <- cs] in [replace [CRob] [Can] g | g <- gs]
 
 removeCan :: (Int, Int) -> [[Cell]] -> [[Cell]]
-removeCan loc cs = let r = if cs !! (fst loc) !! (snd loc) == CRob then ERob else Empty
+removeCan loc cs = let r = if cs !! (snd loc) !! (fst loc) == CRob then ERob else Empty
                        i = fst loc
                        j = snd loc
                     in take j cs ++ [take i (cs !! j) ++ [r] ++ lastN' (9-i) (cs !! j)] ++ lastN' (9-j) cs
@@ -153,13 +153,21 @@ move dir grd =   let    rw = checkMove dir grd
                         j = snd (loc grd)
                         st = step grd
                         in case dir of
-                            U -> let lc = (i, j-1) in Grid{ cells = addRob lc (removeRob (cells grd))
+                            U -> let lc = if j > 1
+                                            then (i, j-1)
+                                            else (i, j) in Grid{ cells = addRob lc (removeRob (cells grd))
                                                           , loc=lc, reward=rw, step=st+1, qtable=qt}
-                            D -> let lc = (i, j+1) in Grid{ cells = addRob lc (removeRob (cells grd))
+                            D -> let lc = if j < 8
+                                            then (i, j+1)
+                                            else (i, j) in Grid{ cells = addRob lc (removeRob (cells grd))
                                                           , loc=lc, reward=rw, step=st+1, qtable=qt}
-                            L -> let lc = (i-1, j) in Grid{ cells = addRob lc (removeRob (cells grd))
+                            L -> let lc = if i > 1
+                                            then (i-1, j)
+                                            else (i, j) in Grid{ cells = addRob lc (removeRob (cells grd))
                                                           , loc=lc, reward=rw, step=st+1, qtable=qt}
-                            R -> let lc = (i+1, j) in Grid{ cells = addRob lc (removeRob (cells grd))
+                            R -> let lc = if i < 8
+                                            then (i+1, j)
+                                            else (i, j) in Grid{ cells = addRob lc (removeRob (cells grd))
                                                           , loc=lc, reward=rw, step=st+1, qtable=qt}
                             P -> let lc = loc grd in if isCan lc (cells grd)
                                                         then Grid{ cells = removeCan lc (cells grd)
@@ -192,7 +200,7 @@ checkMove dir grd
     | snd (loc grd) >= 9 =                    case dir of
                                                 D -> -5.0
                                                 _ -> 0.0
-    | otherwise =                                   case cells grd !! snd (loc grd) !! fst (loc grd) of
+    | otherwise =                             case cells grd !! snd (loc grd) !! fst (loc grd) of
                                                 CRob -> if dir == P then 10.0 else 0.0
                                                 ERob -> if dir == P then -1.0 else 0.0
                                                 _ -> 0.0
@@ -307,8 +315,6 @@ main = do
     isRandoms <- isActionRandom 1 n m 50
     let
         ff = addWalls 10 f
-        --saveme = Grid{cells = addRob l ff
-        --           ,loc = l }
         table = newQTable
         grid = Grid{cells = addRob l ff
                    ,loc = l
@@ -316,11 +322,4 @@ main = do
                    ,step = 0
                    ,qtable = table}
     execProg randoms isRandoms 0 0 grid
-    --printField (removeRob (addRob (4,6) (cells grid)))
-    {-
-    printField (cells grid)
-    let t0 = move D grid
-    printField (cells t0)
-    let t1 = move R t0
-    printField (cells t1)
-     -}
+
