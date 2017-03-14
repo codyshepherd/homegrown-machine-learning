@@ -8,14 +8,16 @@ import qualified Data.Map as Map
 import Control.Exception
 import Debug.Trace
 
-n = 5000
-m = 20
+n_global = 5000
+m_global = 200
 eta = 0.2 :: Float
 gamma = 0.9 :: Float
 
 data KeyNotFoundException = KeyNotFoundException deriving (Show)
+data CanNotFoundException = CanNotFoundException deriving (Show)
 
 instance Exception KeyNotFoundException
+instance Exception CanNotFoundException
 
 data Cell = Empty | Wall | Can | ERob | CRob deriving (Show, Eq)
 
@@ -91,17 +93,29 @@ randomAct :: IO Act
 randomAct = do n <- randomRIO(1,5)
                return (getAction n)
 
-randomBool :: Int -> IO Bool
+randomBool :: Float -> IO Bool
 randomBool p = do n <- randomRIO(1,100)
-                  return (if n > p then True else False)
+                  return (if n > (p*100) then True else False)
 
 randomActions :: Int -> Int -> IO [Act]
 randomActions n m = (n*m) `times` randomAct
 
+{-
 isActionRandom :: Float -> Int -> Int -> Int -> IO [Bool]
 isActionRandom eps n m step = mapM randomBool [floor (eps-(0.01* fromIntegral y) * 100.0)
                                 | x <- [1..(n*m)]
                                 , y <- [x `div` (m*step)]]
+-}
+
+isActionRandom :: Int -> Float -> IO [Bool]
+isActionRandom 1000000 f = return([])
+isActionRandom i f = do n <- randomRIO(0.01,0.99)
+                        let b = if n < f then True else False
+                            n_eps = (0.01 * fromIntegral (i `div` 10000))
+                        bs <- isActionRandom (i+1) (1-n_eps)
+                        --return (b: isActionRandom (i+1) (1 - n_eps))
+                        return (b : bs)
+
 
 addRob :: (Int, Int) -> [[Cell]] -> [[Cell]]
 addRob loc cs = let r = if cs !! (snd loc) !! (fst loc) == Empty then ERob else CRob
@@ -113,10 +127,12 @@ removeRob :: [[Cell]] -> [[Cell]]
 removeRob cs = let gs = [replace [ERob] [Empty] c | c <- cs] in [replace [CRob] [Can] g | g <- gs]
 
 removeCan :: (Int, Int) -> [[Cell]] -> [[Cell]]
-removeCan loc cs = let r = if cs !! (snd loc) !! (fst loc) == CRob then ERob else Empty
-                       i = fst loc
-                       j = snd loc
-                    in take j cs ++ [take i (cs !! j) ++ [r] ++ lastN' (9-i) (cs !! j)] ++ lastN' (9-j) cs
+removeCan loc cs = if cs !! (snd loc) !! (fst loc) == CRob
+                    then
+                       let  i = fst loc
+                            j = snd loc
+                        in take j cs ++ [take i (cs !! j) ++ [ERob] ++ lastN' (9-i) (cs !! j)] ++ lastN' (9-j) cs
+                    else throw CanNotFoundException
 
 isCan :: (Int, Int) -> [[Cell]] -> Bool
 isCan loc cs = let  i = fst loc
@@ -169,7 +185,7 @@ move dir grd =   let    rw = checkMove dir grd
                                             then (i+1, j)
                                             else (i, j) in Grid{ cells = addRob lc (removeRob (cells grd))
                                                           , loc=lc, reward=rw, step=st+1, qtable=qt}
-                            P -> let lc = loc grd in if isCan lc (cells grd)
+                            P -> let lc = loc grd in if isCan lc (cells grd) == True
                                                         then Grid{ cells = removeCan lc (cells grd)
                                                                  , loc=lc, reward=rw, step=st+1, qtable=qt}
                                                         else Grid{ cells = cells grd
@@ -178,32 +194,25 @@ move dir grd =   let    rw = checkMove dir grd
                                                                  , step = st+1
                                                                  , qtable=qt }
 
+
 checkMove :: Act -> Grid -> Float
-checkMove dir grd
-    | fst (loc grd) <= 1 && snd (loc grd) <= 1 =    case dir of
-                                                U -> -5.0
-                                                L -> -5.0
-                                                _ -> 0.0
-    | fst (loc grd) <= 1 =                    case dir of
-                                                L -> -5.0
-                                                _ -> 0.0
-    | snd (loc grd) <= 1 =                    case dir of
-                                                U -> -5.0
-                                                _ -> 0.0
-    | fst (loc grd) >= 9 && snd (loc grd) >= 9 =    case dir of
-                                                D -> -5.0
-                                                R -> -5.0
-                                                _ -> 0.0
-    | fst (loc grd) >= 9 =                    case dir of
-                                                R -> -5.0
-                                                _ -> 0.0
-    | snd (loc grd) >= 9 =                    case dir of
-                                                D -> -5.0
-                                                _ -> 0.0
-    | otherwise =                             case cells grd !! snd (loc grd) !! fst (loc grd) of
-                                                CRob -> if dir == P then 10.0 else 0.0
-                                                ERob -> if dir == P then -1.0 else 0.0
-                                                _ -> 0.0
+checkMove dir grd = let s = getState grd in case dir of
+                                                U -> case north s of
+                                                        Wall -> -5.0
+                                                        _ -> 0.0
+                                                D -> case south s of
+                                                        Wall -> -5.0
+                                                        _ -> 0.0
+                                                L -> case west s of
+                                                        Wall -> -5.0
+                                                        _ -> 0.0
+                                                R -> case east s of
+                                                        Wall -> -5.0
+                                                        _ -> 0.0
+                                                P -> case here s of
+                                                        CRob -> 10.0
+                                                        _ -> -1.0
+
 
 getState :: Grid -> State
 getState grd = let  i = fst (loc grd)
@@ -228,9 +237,9 @@ newQTable = let strings = [ [n] ++ [s] ++ [e] ++ [w] ++ [h] | n <- ['0'..'2'], s
                     where makePair x = (x, [0.0,0.0,0.0,0.0,0.0])
 
 getNewAction :: [Act] -> [Bool] -> Grid -> Act
-getNewAction randActs isRandom grd = let st = step grd
-                                        in if isRandom !! st == True
-                                           then randActs !! st
+getNewAction randActs isRandom grd = let i = step grd
+                                        in if isRandom !! i == True
+                                           then randActs !! i
                                            else getBestAction grd
 
 maxI :: [Float] -> Int
@@ -257,50 +266,48 @@ computeQ s s' i r qt = let  q = (Map.lookup s qt)
                                                 Nothing -> throw KeyNotFoundException
                                 Nothing -> throw KeyNotFoundException
 
-
 learn :: State -> State -> Act -> Grid -> Grid
-learn s sprime a grd = let qt = qtable grd
-                           rw = reward grd
-                           sk = key s
-                           sk' = key sprime
-                           ind = actToInt a
-                           lst = Map.lookup sk qt
-                           in case lst of
-                                Just y -> let newlist = repl ind (computeQ sk sk' ind rw qt) y
-                                            in Grid{ cells   = cells grd
-                                                   , loc     = loc grd
-                                                   , reward  = reward grd
-                                                   , step    = step grd
-                                                   , qtable  = Map.insert sk newlist (Map.delete sk qt)}
-                                Nothing -> throw KeyNotFoundException
+learn s s' a grd = let qt = qtable grd
+                       rw = reward grd
+                       sk = key s
+                       sk' = key s'
+                       ind = actToInt a
+                       lst = Map.lookup sk qt
+                       in case lst of
+                            Just y -> let newlist = repl ind (computeQ sk sk' ind rw qt) y
+                                        in Grid{ cells   = cells grd
+                                               , loc     = loc grd
+                                               , reward  = reward grd
+                                               , step    = step grd
+                                               , qtable  = Map.insert sk newlist (Map.delete sk qt)}
+                            Nothing -> throw KeyNotFoundException
 
 execEpisode :: [Act] -> [Bool] -> Int -> Grid -> Grid
 execEpisode rands isRands i grd = let s = getState grd
                                       act = getNewAction rands isRands grd
-                                      grdprime = move act grd
-                                      sprime = getState grdprime
-                                      in if i == m
-                                         then let a = trace (join "" (join ["\n"] (listValues (cells grd)))) (learn s sprime act grdprime)
-                                                 in learn s sprime act grdprime
-                                         else let a = trace (join "" (join ["\n"] (listValues (cells grd)))) (execEpisode rands isRands (i+1) (learn s sprime act grdprime))
-                                                 in execEpisode rands isRands (i+1) (learn s sprime act grdprime)
+                                      grd' = move act grd
+                                      s' = getState grd'
+                                      in if i == m_global
+                                         then learn s s' act grd'
+                                         else execEpisode rands isRands (i+1) (learn s s' act grd')
 
 slice :: Int -> Int -> [a] -> [a]
 slice from to xs = take (to - from + 1) (drop from xs)
 
 execProg :: [Act] -> [Bool] -> Int -> Int -> Grid -> IO ()
-execProg rands isRands episodes steps initgrid =
-    if episodes == n
+execProg rands isRands episode stp initgrid =
+    if episode == n_global
     then return ()
     else do
-        final <- return (execEpisode rands isRands steps initgrid)
-        print ("End of episode" ++ show episodes)
+        let final = execEpisode rands isRands stp initgrid
+        print ("End of episode" ++ show episode)
         printField (cells final)
+        print (qtable final)
         f <- randomField 8
         l <- randomLoc 8
-        let randoms = slice steps (length rands) rands
-            isRandoms = slice steps (length isRands) isRands
-        execProg randoms isRandoms (episodes+1) steps Grid{ cells = addRob l (addWalls 10 f)
+        let randoms = drop m_global rands
+            isRandoms = drop m_global isRands
+        execProg randoms isRandoms (episode+1) stp Grid{ cells = addRob l (addWalls 10 f)
                                                           , loc = l
                                                           , reward = 0
                                                           , step = 0
@@ -311,8 +318,9 @@ execProg rands isRands episodes steps initgrid =
 main = do
     f <- randomField 8
     l <- randomLoc 8
-    randoms <- randomActions n m
-    isRandoms <- isActionRandom 1 n m 50
+    randoms <- randomActions n_global m_global
+    --isRandoms <- isActionRandom 1 n_global m_global 50
+    isRandoms <- isActionRandom 0 1.0
     let
         ff = addWalls 10 f
         table = newQTable
@@ -322,4 +330,41 @@ main = do
                    ,step = 0
                    ,qtable = table}
     execProg randoms isRandoms 0 0 grid
+    --print (qtable grid)
 
+
+
+{-
+checkMove :: Act -> Grid -> Float
+checkMove dir grd
+    | fst (loc grd) <= 1 && snd (loc grd) <= 1 =    case dir of
+                                                        U -> -5.0
+                                                        L -> -5.0
+                                                        _ -> 0.0
+    | fst (loc grd) <= 1 =                    case dir of
+                                                L -> -5.0
+                                                _ -> 0.0
+    | snd (loc grd) <= 1 =                    case dir of
+                                                U -> -5.0
+                                                _ -> 0.0
+    | fst (loc grd) >= 8 && snd (loc grd) >= 8 =    case dir of
+                                                D -> -5.0
+                                                R -> -5.0
+                                                _ -> 0.0
+    | fst (loc grd) >= 8 =                    case dir of
+                                                R -> -5.0
+                                                _ -> 0.0
+    | snd (loc grd) >= 8 =                    case dir of
+                                                D -> -5.0
+                                                _ -> 0.0
+    | otherwise =                             case cells grd !! snd (loc grd) !! fst (loc grd) of
+                                                CRob -> if dir == P then 10.0 else 0.0
+                                                ERob -> if dir == P then -1.0 else 0.0
+                                                _ -> 0.0
+-}
+{-
+0 empty
+1 wall
+2 can
+3 erob
+4 crob-}
