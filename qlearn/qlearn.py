@@ -1,6 +1,8 @@
 from enum import Enum
 import random
 import numpy as np
+import matplotlib.pyplot as plt
+from matplotlib.backends.backend_pdf import PdfPages
 
 class Cell(Enum):
     Empty = 0
@@ -21,6 +23,18 @@ class Cell(Enum):
         else: return "[8]"
 
     @staticmethod
+    def toString(c):
+        if c == 0:
+            return "[ ]"
+        elif c == 1:
+            return " = "
+        elif c == 2:
+            return "[c]"
+        elif c == 3:
+            return "[o]"
+        else: return "[8]"
+
+    @staticmethod
     def canOrEmpty():
         i = random.randint(0,100)
         if i < 50:
@@ -31,7 +45,8 @@ class Board:
 
     dirs = ["up", "down", "left", "right", "pickup"]
 
-    def __init__(self, dim=10):
+    def __init__(self, dim=10, tax=False):
+        self.tax=tax
         self.grid = []
         self.grid.append([Cell.Wall for i in range(dim)])
         for i in range(dim-2):
@@ -45,7 +60,8 @@ class Board:
         st = ""
         for line in self.grid:
             for item in line:
-                st += str(item)
+                #st += str(item)
+                st += Cell.toString(item)
             st += '\n'
         return st
 
@@ -133,35 +149,35 @@ class Board:
             self.removeRob(self.location)
             self.addRob((i,nj))
             if nj == j:
-                return -5.0
-            else: return 0.0
+                return -5.0 if self.tax==False else -5.5
+            else: return 0.0 if self.tax==False else -0.5
         elif dir == "down":
             nj = min(j+1, 8)
             self.removeRob(self.location)
             self.addRob((i,nj))
             if nj == j:
-                return -5.0
-            else: return 0.0
+                return -5.0 if self.tax==False else -5.5
+            else: return 0.0 if self.tax==False else -0.5
         elif dir == "left":
             ni = max(i-1, 1)
             self.removeRob(self.location)
             self.addRob((ni,j))
             if ni == i:
-                return -5.0
-            else: return 0.0
+                return -5.0 if self.tax==False else -5.5
+            else: return 0.0 if self.tax==False else -0.5
         elif dir == "right":
             ni = min(i+1, 8)
             self.removeRob(self.location)
             self.addRob((ni,j))
             if ni == i:
-                return -5.0
-            else: return 0.0
+                return -5.0 if self.tax==False else -5.5
+            else: return 0.0 if self.tax==False else -0.5
         elif dir == "pickup":
             if self.grid[j][i] == Cell.CRob:
                 self.grid[j][i] = Cell.ERob
-                return 10.0
+                return 10.0 if self.tax==False else 9.5
             elif self.grid[j][i] == Cell.ERob:
-                return -1.0
+                return -1.0 if self.tax==False else -1.5
             else: raise Exception("Trying to pickup and Rob is not there")
 
 class Qtable:
@@ -183,7 +199,7 @@ class Qtable:
 
     def update(self, state, act, state_p, act_p, eta, gamma, reward):
         q_sa = self.table[state['k']][act]
-        q_sap = np.amax(self.table[state_p['k']])
+        q_sap = self.table[state_p['k']][act_p]
         self.table[state['k']][act] = q_sa + eta*(reward + (gamma*q_sap) - q_sa)
 
     def sum(self):
@@ -193,17 +209,19 @@ class Qtable:
         return s
 
 class Learner:
-    N = 5000
-    M = 200
-    eta = 0.2
-    gamma = 0.9
-    init_epsilon = 1
 
-    def __init__(self,):
+    def __init__(self,eps_dec=True, N=5000, M=200, eta=0.2, gamma=0.9, eps=1.0, tax=False):
+        self.init_eps = eps
+        self.t=tax
         self.qt = Qtable()
-        self.board = Board()
-        self.epsilon = self.init_epsilon
+        self.board = Board(tax=self.t)
         self.reward_sums = []
+        self.eps_dec = eps_dec
+        self.N = N
+        self.M = M
+        self.eta = eta
+        self.gamma = gamma
+        self.epsilon = eps
 
     def getRandomAction(self):
         r = random.randint(0,4)
@@ -234,25 +252,43 @@ class Learner:
         self.qt.update(state, a, state_p, a_p, self.eta, self.gamma, reward)
 
     def episode(self):
-        self.board = Board()
-        print self.board
+        self.board = Board(tax=self.t)
         for i in range(self.M):
             self.step()
 
     def train(self):
         for i in range(self.N):
-            if i%50 == 0 and self.epsilon > 0.1:
+            if i%50 == 0 and self.epsilon > 0.1 and self.eps_dec == True:
                 self.epsilon -= 0.01
             self.episode()
             self.reward_sums.append(self.qt.sum())
-            print self.board
-            print "Total reward: ", self.reward_sums[-1]
-            print "End of Episode: ", i
-        print "Final total reward: ", self.reward_sums[-1]
+            #print str(self.board)
+            #print "Total reward: ", self.reward_sums[-1]
+            #print "End of Episode: ", i
+        #print "Final total reward: ", self.reward_sums[-1]
+        pp = PdfPages("Tax_" + str(self.t) + "_epsdec_" + str(self.eps_dec) +\
+                      "_Gamma_" + str(self.gamma) + "_Eta_" + str(self.eta) + \
+                      "_N_" + str(self.N) + "_M_" + str(self.M) + "_ieps_" + str(self.init_eps) + ".pdf")
+        plt.figure()
+        labels = [str(x) for x in range(0,self.N, 100)]
+        parts = [self.reward_sums[i] for i in range(0,len(self.reward_sums), 100)]
+        plt.plot(range(self.N), self.reward_sums)
+        plt.plot(labels, parts)
+        plt.xlabel("Episode")
+        plt.ylabel("Sum of Reward in Q Table")
+        plt.title("Tax: " + str(self.t) + " Eps Dec: " + str(self.eps_dec) + \
+                  " Gamma: " + str(self.gamma) + " Eta: " + str(self.eta) + \
+                  " N: " + str(self.N) + " M: " + str(self.M) + " i_eps: " + str(self.init_eps))
+
+        pp.savefig()
+        pp.close()
+        plt.close()
 
     def test_step(self):
         act = self.newAction()
         reward = self.board.moveRob(act)
+        #print self.board
+        #raw_input()
         return reward
 
     def test(self):
@@ -260,7 +296,7 @@ class Learner:
         self.epsilon = 0.1
         for i in range(self.N):
             self.step_rewards = []
-            self.board = Board()
+            self.board = Board(tax=self.t)
             for j in range(self.M):
                 self.step_rewards.append(self.test_step())
             self.reward_sums.append(np.sum(self.step_rewards))
@@ -268,11 +304,41 @@ class Learner:
         avg = np.mean(self.reward_sums)
         stdev = np.std(self.reward_sums)
 
-        return avg, stdev
+        with open("Tax_" + str(self.t) + "_epsdec_" + str(self.eps_dec) + \
+                  "_Gamma_" + str(self.gamma) + "_Eta_" + str(self.eta) + \
+                  "_N_" + str(self.N) + "_M_" + str(self.M) + "_Ieps_ " + \
+                  str(self.init_eps) + ".txt", 'w+') as fh:
+            fh.write("Test Average: " + str(avg) + '\n')
+            fh.write("Test Standard Dev: " + str(stdev) + '\n')
 
 
 l = Learner()
 l.train()
-a, s = l.test()
-print "test average sum-over-episodes: ", a
-print "test stdev: ", s
+l.test()
+
+
+l = Learner(eta=0.1)
+l.train()
+l.test()
+l = Learner(eta=0.4)
+l.train()
+l.test()
+l = Learner(eta=0.7)
+l.train()
+l.test()
+l = Learner(eta=0.9)
+l.train()
+l.test()
+
+
+l = Learner(eps=0.3, eps_dec=False)
+l.train()
+l.test()
+l = Learner(eps=0.7, eps_dec=False)
+l.train()
+l.test()
+
+
+l = Learner(tax=True)
+l.train()
+l.test()

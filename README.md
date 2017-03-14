@@ -34,3 +34,13 @@ This K-means clusterer will take the best out of five tries given randomly-initi
 works by computing the distances between all possible example-centroid pairs given the training set, and then
 resetting the cluster centroid to the mean of its cluster. It does this in a loop until accuracy stops 
 changing. Higher accuracies (in the 90% range) are seen for the second iteration where K=30.
+
+## Q Learning
+### A reinforcement learning algorithm that uses a Q-Matrix to navigate a grid and pick up cans
+This "robot" uses the q-learning algorithm, which seeks to maximize the amount of reward obtained by a series
+of decisions. In this case, the robot must navigate a 10x10 grid (the outermost cells of which are walls) and
+try to pick up all the cans without bumping into walls. The algorithm is rewarded for picking up cans, and
+penalized to various degrees for hitting walls or attempting a pick up when no can in present.
+The `qlearn.py` file runs through several experiments over the algorithm's hyperparameters.
+The `learn2.hs` file is my attempt to code the scenario in Haskell. Disclaimer: I am a beginner at Haskell, and
+the file currently doesn't run properly, due to what appears to be the stack going supernova.
