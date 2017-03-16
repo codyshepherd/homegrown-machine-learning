@@ -43,10 +43,11 @@ class Cell(Enum):
 
 class Board:
 
-    dirs = ["up", "down", "left", "right", "pickup"]
+    dirs = ["up", "down", "right", "left", "pickup"]
 
-    def __init__(self, dim=10, tax=False):
+    def __init__(self, dim=10, tax=False, rw=1.0):
         self.tax=tax
+        self.base_penalty = rw
         self.grid = []
         self.grid.append([Cell.Wall for i in range(dim)])
         for i in range(dim-2):
@@ -72,8 +73,8 @@ class Board:
 
         if act == "up": return 0
         elif act == "down": return 1
-        elif act == "left": return 2
-        elif act == "right": return 3
+        elif act == "right": return 2
+        elif act == "left": return 3
         else: return 4
 
     @staticmethod
@@ -177,7 +178,7 @@ class Board:
                 self.grid[j][i] = Cell.ERob
                 return 10.0 if self.tax==False else 9.5
             elif self.grid[j][i] == Cell.ERob:
-                return -1.0 if self.tax==False else -1.5
+                return -self.base_penalty if self.tax==False else -(self.base_penalty+0.5)
             else: raise Exception("Trying to pickup and Rob is not there")
 
 class Qtable:
@@ -203,18 +204,21 @@ class Qtable:
         self.table[state['k']][act] = q_sa + eta*(reward + (gamma*q_sap) - q_sa)
 
     def sum(self):
-        s = 0.0
-        for key in self.table.keys():
-            s += np.sum(self.table[key])
+        #s = 0.0
+        #for key in self.table.keys():
+        #    s += np.sum(self.table[key])
+        l = np.array(self.table.values())
+        s = np.sum(l)
         return s
 
 class Learner:
 
-    def __init__(self,eps_dec=True, N=5000, M=200, eta=0.2, gamma=0.9, eps=1.0, tax=False):
+    def __init__(self,eps_dec=True, N=5000, M=200, eta=0.2, gamma=0.9, eps=1.0, tax=False,rw=1.0):
         self.init_eps = eps
         self.t=tax
+        self.rw = rw
         self.qt = Qtable()
-        self.board = Board(tax=self.t)
+        self.board = Board(tax=self.t, rw=self.rw)
         self.reward_sums = []
         self.eps_dec = eps_dec
         self.N = N
@@ -246,6 +250,14 @@ class Learner:
         act = self.newAction()
         a = self.board.actToInt(act)
         reward = self.board.moveRob(act)
+
+        """
+        print "state: ", state['k']
+        print "action: ", act
+        print "reward: ", reward
+        raw_input()
+        """
+
         state_p = self.board.getState()
         act_p = self.getBestAction()
         a_p = self.board.actToInt(act_p)
@@ -266,7 +278,7 @@ class Learner:
             #print "Total reward: ", self.reward_sums[-1]
             #print "End of Episode: ", i
         #print "Final total reward: ", self.reward_sums[-1]
-        pp = PdfPages("Tax_" + str(self.t) + "_epsdec_" + str(self.eps_dec) +\
+        pp = PdfPages("PU_Pen_" + str(self.rw) + "_tax_" + str(self.t) + "_epsdec_" + str(self.eps_dec) +\
                       "_Gamma_" + str(self.gamma) + "_Eta_" + str(self.eta) + \
                       "_N_" + str(self.N) + "_M_" + str(self.M) + "_ieps_" + str(self.init_eps) + ".pdf")
         plt.figure()
@@ -276,8 +288,8 @@ class Learner:
         plt.plot(labels, parts)
         plt.xlabel("Episode")
         plt.ylabel("Sum of Reward in Q Table")
-        plt.title("Tax: " + str(self.t) + " Eps Dec: " + str(self.eps_dec) + \
-                  " Gamma: " + str(self.gamma) + " Eta: " + str(self.eta) + \
+        plt.title("PU Pen: " + str(self.rw) +  " Tax: " + str(self.t) + " Eps Dec: " + str(self.eps_dec) + \
+                  " G: " + str(self.gamma) + " Eta: " + str(self.eta) + \
                   " N: " + str(self.N) + " M: " + str(self.M) + " i_eps: " + str(self.init_eps))
 
         pp.savefig()
@@ -304,19 +316,19 @@ class Learner:
         avg = np.mean(self.reward_sums)
         stdev = np.std(self.reward_sums)
 
-        with open("Tax_" + str(self.t) + "_epsdec_" + str(self.eps_dec) + \
+        with open("PU_pen_" + str(self.rw) + "_tax_" + str(self.t) + "_epsdec_" + str(self.eps_dec) + \
                   "_Gamma_" + str(self.gamma) + "_Eta_" + str(self.eta) + \
                   "_N_" + str(self.N) + "_M_" + str(self.M) + "_Ieps_ " + \
                   str(self.init_eps) + ".txt", 'w+') as fh:
             fh.write("Test Average: " + str(avg) + '\n')
             fh.write("Test Standard Dev: " + str(stdev) + '\n')
 
-
+#Experiment 1
 l = Learner()
 l.train()
 l.test()
 
-
+#Experiment 2
 l = Learner(eta=0.1)
 l.train()
 l.test()
@@ -330,7 +342,7 @@ l = Learner(eta=0.9)
 l.train()
 l.test()
 
-
+#Experiment 3
 l = Learner(eps=0.3, eps_dec=False)
 l.train()
 l.test()
@@ -338,7 +350,21 @@ l = Learner(eps=0.7, eps_dec=False)
 l.train()
 l.test()
 
-
+#Experiment 4
 l = Learner(tax=True)
+l.train()
+l.test()
+
+#Experiment 5
+l = Learner(rw=3.0)
+l.train()
+l.test()
+l = Learner(rw=5.0)
+l.train()
+l.test()
+l = Learner(rw=7.0)
+l.train()
+l.test()
+l = Learner(rw=9.0)
 l.train()
 l.test()

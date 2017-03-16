@@ -90,7 +90,7 @@ randomLoc n = do i <- randomRIO(1,n)
                  return (i,j)
 
 randomAct :: IO Act
-randomAct = do n <- randomRIO(1,5)
+randomAct = do n <- randomRIO(0,99)
                return (getAction n)
 
 randomBool :: Float -> IO Bool
@@ -172,19 +172,19 @@ move dir grd =   let    rw = checkMove dir grd
                             U -> let lc = if j > 1
                                             then (i, j-1)
                                             else (i, j) in Grid{ cells = addRob lc (removeRob (cells grd))
-                                                          , loc=lc, reward=rw, step=st+1, qtable=qt}
+                                                               , loc=lc, reward=rw, step=st+1, qtable=qt}
                             D -> let lc = if j < 8
                                             then (i, j+1)
                                             else (i, j) in Grid{ cells = addRob lc (removeRob (cells grd))
-                                                          , loc=lc, reward=rw, step=st+1, qtable=qt}
+                                                               , loc=lc, reward=rw, step=st+1, qtable=qt}
                             L -> let lc = if i > 1
                                             then (i-1, j)
                                             else (i, j) in Grid{ cells = addRob lc (removeRob (cells grd))
-                                                          , loc=lc, reward=rw, step=st+1, qtable=qt}
+                                                               , loc=lc, reward=rw, step=st+1, qtable=qt}
                             R -> let lc = if i < 8
                                             then (i+1, j)
                                             else (i, j) in Grid{ cells = addRob lc (removeRob (cells grd))
-                                                          , loc=lc, reward=rw, step=st+1, qtable=qt}
+                                                               , loc=lc, reward=rw, step=st+1, qtable=qt}
                             P -> let lc = loc grd in if isCan lc (cells grd) == True
                                                         then Grid{ cells = removeCan lc (cells grd)
                                                                  , loc=lc, reward=rw, step=st+1, qtable=qt}
@@ -253,7 +253,7 @@ getBestAction grd = let k = key (getState grd)
                             Nothing -> throw KeyNotFoundException
 
 repl :: Int -> Float -> [Float] -> [Float]
-repl i new lst = [if j == i then new else x | x<-lst, j<-[1..length lst]]
+repl i new lst = [if j == i then new else x | x<-lst, j<-[0..((length lst)-1)]]
 
 computeQ :: String -> String -> Int -> Float -> Map String [Float] -> Float
 computeQ s s' i r qt = let  q = (Map.lookup s qt)
@@ -300,19 +300,19 @@ execProg rands isRands episode stp initgrid =
     then return ()
     else do
         let final = execEpisode rands isRands stp initgrid
+            qt = qtable final
         print ("End of episode" ++ show episode)
         printField (cells final)
-        print (qtable final)
+        --print qt
         f <- randomField 8
         l <- randomLoc 8
         let randoms = drop m_global rands
             isRandoms = drop m_global isRands
         execProg randoms isRandoms (episode+1) stp Grid{ cells = addRob l (addWalls 10 f)
-                                                          , loc = l
-                                                          , reward = 0
-                                                          , step = 0
-                                                          , qtable = qtable final}
-
+                                                       , loc = l
+                                                       , reward = 0
+                                                       , step = 0
+                                                       , qtable = qt}
 
 
 main = do
@@ -329,42 +329,6 @@ main = do
                    ,reward = 0
                    ,step = 0
                    ,qtable = table}
-    execProg randoms isRandoms 0 0 grid
+    execProg randoms isRandoms (n_global-201) 0 grid
     --print (qtable grid)
 
-
-
-{-
-checkMove :: Act -> Grid -> Float
-checkMove dir grd
-    | fst (loc grd) <= 1 && snd (loc grd) <= 1 =    case dir of
-                                                        U -> -5.0
-                                                        L -> -5.0
-                                                        _ -> 0.0
-    | fst (loc grd) <= 1 =                    case dir of
-                                                L -> -5.0
-                                                _ -> 0.0
-    | snd (loc grd) <= 1 =                    case dir of
-                                                U -> -5.0
-                                                _ -> 0.0
-    | fst (loc grd) >= 8 && snd (loc grd) >= 8 =    case dir of
-                                                D -> -5.0
-                                                R -> -5.0
-                                                _ -> 0.0
-    | fst (loc grd) >= 8 =                    case dir of
-                                                R -> -5.0
-                                                _ -> 0.0
-    | snd (loc grd) >= 8 =                    case dir of
-                                                D -> -5.0
-                                                _ -> 0.0
-    | otherwise =                             case cells grd !! snd (loc grd) !! fst (loc grd) of
-                                                CRob -> if dir == P then 10.0 else 0.0
-                                                ERob -> if dir == P then -1.0 else 0.0
-                                                _ -> 0.0
--}
-{-
-0 empty
-1 wall
-2 can
-3 erob
-4 crob-}
