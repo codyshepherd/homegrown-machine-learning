@@ -1,3 +1,17 @@
+'''
+Cody Shepherd
+qlearn.py
+CS 545: Machine Learning
+Homework 6
+
+INSTRUCTIONS ON RUNNING
+In command-line: python qlearn.py
+Or open in PyCharm and run qlearn.py
+
+REQUIREMENTS
+no external files are required for this program to run
+'''
+
 from enum import Enum
 import random
 import numpy as np
@@ -5,6 +19,18 @@ import matplotlib.pyplot as plt
 from matplotlib.backends.backend_pdf import PdfPages
 
 class Cell(Enum):
+    '''
+    This class describes the state of a given cell or square in the grid environment where
+    this AI will learn. Also included are some static methods for generating string representations
+    of cells and generating random cells.
+
+    As an enumerated type, objects of this class will have only one of the values declared below.
+
+    "ERob" and "CRob" represent Rob, the AI, on Cells where a Can does not and does also reside,
+    respectively.
+
+    '''
+
     Empty = 0
     Wall = 1
     Can = 2
@@ -12,6 +38,13 @@ class Cell(Enum):
     CRob = 4
 
     def __str__(self):
+        '''
+        This function converts a given cell to the string required to place it in the pictoral
+        representation of the grid space
+
+        :return: three-character string
+
+        '''
         if self.value == 0:
             return "[ ]"
         elif self.value == 1:
@@ -24,6 +57,14 @@ class Cell(Enum):
 
     @staticmethod
     def toString(c):
+        '''
+        This function converts an integer argument to the string value appropriate for
+        placement in the grid space.
+
+        :param c: int : 0 <= c < 5
+        :return: three-character string
+
+        '''
         if c == 0:
             return "[ ]"
         elif c == 1:
@@ -36,16 +77,46 @@ class Cell(Enum):
 
     @staticmethod
     def canOrEmpty():
+        '''
+        This function returns either an empty cell or a can cell, at random.
+
+        :return: Cell
+
+        '''
         i = random.randint(0,100)
         if i < 50:
             return Cell.Empty
         else: return Cell.Can
 
 class Board:
+    '''
+    This class represents the grid space / game board and the "pieces" on it. It maintains the
+    location of the "Rob" figure, and determines rewards given to the AI for different actions.
+
+    dirs :: [String] : static field enumerating the actions available to the AI
+    tax :: Boolean : flag indicating whether an "action tax" is enabled (True) or not (False)
+    base_penalty :: Float : value determining the base penalty (without tax) returned when the
+                            AI attempts to pick up a can where there is no can
+    grid :: [[Cell]] : a 2-d list of cells that comprises the grid space
+    location :: (Int, Int) : a tuple representing the location of the AI. For (i, j), i represents
+                            the "x-coordinate," i.e. the index within the nested list, and j
+                            represents the "y-coordinate," i.e. which nested list to look for. This
+                            means you will see Rob's location as grid[j][i].
+
+    '''
 
     dirs = ["up", "down", "right", "left", "pickup"]
 
     def __init__(self, dim=10, tax=False, rw=1.0):
+        '''
+        Constructor.
+
+        :param dim: Int : determines the height and width of the grid space, including walls
+        :param tax: Boolean : whether or not an "action tax" (reward of -0.5 for taking any
+                                action) is enabled
+        :param rw: Float : the base penalty for an incorrect pickup action
+
+        '''
         self.tax=tax
         self.base_penalty = rw
         self.grid = []
@@ -54,10 +125,15 @@ class Board:
             self.grid.append([Cell.Wall] + [Cell.canOrEmpty() for j in range(dim-2)] + [Cell.Wall])
         self.grid.append([Cell.Wall for i in range(dim)])
         self.location = (random.randint(1,8), random.randint(1,8))
-        #self.location = (1,1)
         self.addRob(self.location)
 
     def __str__(self):
+        '''
+        String conversion method.
+
+        :return: string representing grid space for pretty printing
+
+        '''
         st = ""
         for line in self.grid:
             for item in line:
@@ -68,6 +144,14 @@ class Board:
 
     @staticmethod
     def actToInt(act):
+        '''
+        This method maps an action to its corresponding integer value, i.e. which column in the
+        qtable defines this action.
+
+        :param act: String : the action to be mapped
+        :return: Int : the index of the action
+
+        '''
         if act not in Board.dirs:
             raise BaseException("actToInt given illegal action")
 
@@ -79,6 +163,17 @@ class Board:
 
     @staticmethod
     def stateToKey(state):
+        '''
+        This method maps a list of Cells to a numeric string that will represent it in the
+        qtable.
+
+        :param state: [Cell] : a list of five Cells
+        :return: String : numeric string representing state's "key"
+
+        '''
+        if len(state) != 5:
+            raise Exception("State passed to stateToKey is wrong length!")
+
         st = ""
         for cell in state:
             if cell == Cell.Empty:
@@ -95,6 +190,15 @@ class Board:
         return st
 
     def getState(self):
+        '''
+        Returns the state of Rob's current location, i.e. what lives at north, south, east, west, and
+        "here," in that order.
+
+        A state is represented by a dict of Cells with keys 'n' 's' 'e' 'w' and 'h'.
+
+        :return: {String:Cell} : a dict representing the state at self.location
+
+        '''
         i = self.location[0]
         j = self.location[1]
         lst = []
@@ -114,6 +218,16 @@ class Board:
 
 
     def addRob(self, loc):
+        '''
+        Adds Rob to the given location. This is an in-place update.
+
+        Note that this method should probably only be called after calling self.removeRob(), otherwise
+        there will be more than one Rob on the board.
+
+        :param loc: (Int, Int) : tuple representing the location at which to add Rob
+        :return: None
+
+        '''
         i = loc[0]
         j = loc[1]
         l = self.grid[j][i]
@@ -126,6 +240,15 @@ class Board:
         else: raise Exception("Trying to add Rob in a Wall")
 
     def removeRob(self, loc):
+        '''
+        Removes Rob from the given location. This is an in-place update.
+
+        Note that this method also voids self.location.
+
+        :param loc: (Int, Int) : the location of Rob, from which xhe will be removed.
+        :return: None
+
+        '''
         i = loc[0]
         j = loc[1]
         l = self.grid[j][i]
@@ -139,6 +262,14 @@ class Board:
 
 
     def moveRob(self, dir):
+        '''
+        Updates the grid to reflect the specified movement, and returns the reward for said
+        movement.
+
+        :param dir:
+        :return:
+
+        '''
         if dir not in self.dirs:
             raise Exception("Illegal move")
 
