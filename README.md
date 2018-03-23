@@ -42,5 +42,5 @@ of decisions. In this case, the robot must navigate a 10x10 grid (the outermost 
 try to pick up all the cans without bumping into walls. The algorithm is rewarded for picking up cans, and
 penalized to various degrees for hitting walls or attempting a pick up when no can in present.
 The `qlearn.py` file runs through several experiments over the algorithm's hyperparameters.
-The `learn2.hs` file is my attempt to code the scenario in Haskell. Disclaimer: I am a beginner at Haskell, and
-the file currently doesn't run properly, due to what appears to be the stack going supernova.
+The `learn2.hs` file is my first attempt to code the scenario in Haskell. I completed a better Haskell
+implementation later, and put it in its own repository [here](https://github.com/codyshepherd/qlearn_functional).
